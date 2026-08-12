@@ -1,0 +1,89 @@
+// Prisma Schema for Pinhire Job Portal
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Job {
+  id             String        @id @default(cuid())
+  slug           String        @unique
+  title          String
+  companyId      String
+  company        Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  description    String
+  lat            Float
+  lng            Float
+  locationLabel  String        // e.g. "Bangalore, Karnataka, India"
+  experienceMin  Int           @default(0)
+  experienceMax  Int?
+  jobType        String        @default("FULL_TIME") // FULL_TIME, PART_TIME, INTERNSHIP, FREELANCE
+  applyLink      String?
+  hrEmail        String?
+  postedAt       DateTime      @default(now())
+  expiresAt      DateTime
+  status         String        @default("ACTIVE") // ACTIVE, EXPIRED, DRAFT
+  source         String        @default("manual") // manual, pasted-extract, csv
+  createdBy      String        @default("admin")
+  applications   Application[]
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+}
+
+model Company {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  name        String
+  description String?
+  website     String?
+  logoUrl     String?
+  verified    Boolean  @default(false)
+  lat         Float?
+  lng         Float?
+  jobs        Job[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Application {
+  id        String   @id @default(cuid())
+  userId    String?  // null if anonymous
+  user      User?    @relation(fields: [userId], references: [id])
+  jobId     String
+  job       Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  appliedAt DateTime @default(now())
+  method    String   // "link" | "email"
+}
+
+model User {
+  id            String        @id @default(cuid())
+  email         String        @unique
+  name          String?
+  resumeUrl     String?
+  parsedResume  String?       // JSON string of {skills, experienceYears, roles, locationPreference}
+  notifyFreq    String        @default("weekly") // "off" | "daily" | "weekly"
+  applications  Application[]
+  savedJobs     SavedJob[]
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+}
+
+model SavedJob {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobId     String
+  createdAt DateTime @default(now())
+
+  @@unique([userId, jobId])
+}
+
+model AnalyticsEvent {
+  id        String   @id @default(cuid())
+  type      String   // "visit" | "search" | "apply_click" | "resume_upload"
+  metadata  String?  // JSON string
+  createdAt DateTime @default(now())
+}

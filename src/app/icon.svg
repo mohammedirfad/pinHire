@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4f46e5" />
+      <stop offset="100%" stop-color="#312e81" />
+    </linearGradient>
+    <linearGradient id="pinGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ff7043" />
+      <stop offset="100%" stop-color="#f4511e" />
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#000000" flood-opacity="0.4" />
+    </filter>
+  </defs>
+  
+  <!-- Rounded Squircle Background -->
+  <rect width="512" height="512" rx="128" fill="url(#bgGrad)" />
+  
+  <!-- Outer Glow Pulse -->
+  <circle cx="256" cy="220" r="140" fill="#ff7043" opacity="0.15" />
+  
+  <!-- Map Pin Symbol -->
+  <g filter="url(#shadow)">
+    <path d="M256 96C185.3 96 128 153.3 128 224C128 312 256 416 256 416S384 312 384 224C384 153.3 326.7 96 256 96Z" fill="url(#pinGrad)" />
+    <!-- Inner White Core -->
+    <circle cx="256" cy="224" r="54" fill="#ffffff" />
+    <!-- Inner Coral Dot -->
+    <circle cx="256" cy="224" r="28" fill="#f4511e" />
+  </g>
+</svg>
