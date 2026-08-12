@@ -37,7 +37,7 @@ Copy `.env.example` to `.env`:
 DATABASE_URL="file:./dev.db"
 
 # Admin Panel Secret Path (Randomized & configurable per deployment)
-NEXT_PUBLIC_ADMIN_PATH="/ops-7f3a9c2e"
+NEXT_PUBLIC_ADMIN_PATH="/--------"
 ADMIN_SECRET="pinhire_admin_super_secret_2026"
 
 # Site Metadata
