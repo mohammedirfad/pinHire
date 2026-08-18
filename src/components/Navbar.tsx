@@ -3,13 +3,12 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { MapPin, Search, FileText, ShieldCheck, User, Lock, LogOut, ChevronDown } from 'lucide-react';
+import { MapPin, Search, FileText, ShieldCheck, User, LogOut, ChevronDown } from 'lucide-react';
 import { useAuth } from '@/lib/authContext';
 
 export function Navbar() {
   const pathname = usePathname();
   const router = useRouter();
-  const adminPath = process.env.NEXT_PUBLIC_ADMIN_PATH || '/ops-7f3a9c2e';
   const { user, logout, loading } = useAuth();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
 
@@ -69,7 +68,7 @@ export function Navbar() {
           </Link>
         </nav>
 
-        {/* Right: Auth & Admin */}
+        {/* Right: Auth */}
         <div className="flex items-center gap-2">
           {!loading && (
             <>
@@ -130,15 +129,6 @@ export function Navbar() {
               )}
             </>
           )}
-
-          {/* Admin Secret Link */}
-          <Link
-            href={adminPath}
-            title="Admin Console"
-            className="flex items-center gap-1 px-2.5 py-1 rounded-md bg-slate-900 text-slate-200 text-[11px] font-mono hover:bg-slate-800 transition-colors border border-slate-800 hidden sm:flex"
-          >
-            <Lock className="h-3 w-3 text-emerald-400" /> Admin
-          </Link>
         </div>
       </div>
     </header>

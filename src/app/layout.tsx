@@ -5,6 +5,7 @@ import { Navbar } from '@/components/Navbar';
 import { Footer } from '@/components/Footer';
 import { Toaster } from 'sonner';
 import { AuthProvider } from '@/lib/authContext';
+import { StructuredData } from '@/components/StructuredData';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -16,27 +17,38 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   title: {
-    default: 'Pinhire — Real Map-Based Job Portal | See Where Jobs Actually Are',
-    template: '%s | Pinhire Live Map Jobs',
+    default: 'Pinhire - Map-Based Job Search in India | Jobs Near You',
+    template: '%s | Pinhire',
   },
   description:
-    'Discover active hiring locations on a live interactive map. Pinhire pinpoints tech, engineering, and design roles directly at exact office coordinates — no forced signups.',
+    'Pinhire helps candidates find software, IT, startup, Infopark, MNC, remote, and fresher jobs on a live map across India. Search jobs by role, skill, company, and location.',
   keywords: [
+    'Pinhire',
+    'Pinhire jobs',
+    'Pinhire online',
+    'job search India',
+    'jobs in India',
     'map job portal',
     'jobs near me',
     'interactive job map',
     'hiring locations map',
-    'tech jobs bangalore',
-    'kochi infopark jobs',
+    'IT jobs India',
+    'startup jobs India',
+    'MNC jobs India',
+    'freshers jobs India',
+    'tech jobs Bangalore',
+    'software jobs Bangalore',
+    'Hyderabad IT jobs',
+    'Pune software jobs',
+    'Chennai IT jobs',
+    'Kochi Infopark jobs',
     'software engineering jobs',
     'remote developer jobs',
-    'Pinhire jobs',
-    'map job search'
   ],
-  authors: [{ name: 'Pinhire Inc.' }],
+  authors: [{ name: 'Pinhire' }],
   creator: 'Pinhire',
   publisher: 'Pinhire',
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'),
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'https://www.pinhire.online'),
   alternates: {
     canonical: '/',
   },
@@ -52,10 +64,12 @@ export const metadata: Metadata = {
     },
   },
   openGraph: {
-    title: 'Pinhire — Real Map-Based Job Portal',
-    description: 'See where the jobs actually are. Interactive live hiring map for tech & engineering roles.',
-    url: 'http://localhost:3000',
+    title: 'Pinhire - Map-Based Job Search in India',
+    description:
+      'Find jobs near you on a live hiring map. Search India software, IT, startup, MNC, fresher, and remote jobs by role, skill, company, and city.',
+    url: '/',
     siteName: 'Pinhire',
+    countryName: 'India',
     locale: 'en_US',
     type: 'website',
     images: [
@@ -63,14 +77,14 @@ export const metadata: Metadata = {
         url: '/icon.svg',
         width: 512,
         height: 512,
-        alt: 'Pinhire Map-Based Job Portal Logo',
+        alt: 'Pinhire map-based job search logo',
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Pinhire — Real Map-Based Job Portal',
-    description: 'Find real hiring locations on an interactive live map.',
+    title: 'Pinhire - Map-Based Job Search in India',
+    description: 'Find software, IT, startup, MNC, fresher, and remote jobs near you on a live map.',
     creator: '@pinhire',
     images: ['/icon.svg'],
   },
@@ -86,6 +100,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className="h-full">
       <body className={`${inter.className} flex min-h-full flex-col bg-slate-50 dark:bg-slate-950`}>
         <AuthProvider>
+          <StructuredData />
           <Navbar />
           <main className="flex-1">{children}</main>
           <Footer />

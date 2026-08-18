@@ -8,7 +8,7 @@ import { FilterBar, FilterState } from '@/components/FilterBar';
 import { JobCard } from '@/components/JobCard';
 import { JobDetailModal } from '@/components/JobDetailModal';
 import { MOCK_JOBS } from '@/lib/mockData';
-import { KNOWN_CITIES, getDistanceKm, geocodeLocation } from '@/lib/geo';
+import { getDistanceKm, geocodeLocation } from '@/lib/geo';
 import { MapPin, List, Map as MapIcon, AlertCircle, Globe, Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -104,14 +104,18 @@ function JobsPageInner() {
 
   const fetchJobs = async (kw = keyword, loc = location, f = filters, globalFallback = false) => {
     setLoading(true);
+    setCurrentPage(1);
+    setSelectedJob(null);
     try {
       const params = new URLSearchParams();
-      if (kw) params.set('keyword', kw);
+      const cleanKeyword = kw.trim();
+      const cleanLocation = loc.trim();
+      if (cleanKeyword) params.set('keyword', cleanKeyword);
 
       // ALWAYS geocode the searched location to center the map on that city/country regardless of whether jobs exist
-      if (loc && loc.trim()) {
-        params.set('location', loc);
-        const geoCoords = await geocodeLocation(loc);
+      if (cleanLocation) {
+        params.set('location', cleanLocation);
+        const geoCoords = await geocodeLocation(cleanLocation);
         if (geoCoords) {
           setMapCenter({ lat: geoCoords.lat, lng: geoCoords.lng });
           params.set('lat', geoCoords.lat.toString());
@@ -133,10 +137,14 @@ function JobsPageInner() {
   };
 
   const handleSearchSubmit = (query: { keyword: string; location: string }) => {
-    setKeyword(query.keyword);
-    setLocation(query.location);
-    fetchJobs(query.keyword, query.location, filters);
-    updateUrlParams(query.keyword, query.location, filters);
+    const cleanKeyword = query.keyword.trim();
+    const cleanLocation = query.location.trim();
+    const nextFilters = cleanLocation ? filters : { ...filters, radiusKm: 0 };
+    setKeyword(cleanKeyword);
+    setLocation(cleanLocation);
+    setFilters(nextFilters);
+    fetchJobs(cleanKeyword, cleanLocation, nextFilters);
+    updateUrlParams(cleanKeyword, cleanLocation, nextFilters);
   };
 
   const handleFilterChange = (newFilters: FilterState) => {

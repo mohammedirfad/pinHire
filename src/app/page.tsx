@@ -38,9 +38,9 @@ export default function HomePage() {
           </div>
 
           <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight text-white leading-tight">
-            See where the jobs <br className="hidden sm:inline" />
+            Pinhire job search <br className="hidden sm:inline" />
             <span className="bg-gradient-to-r from-brand-300 via-coral-400 to-amber-300 bg-clip-text text-transparent">
-              actually are.
+              on a live map.
             </span>
           </h1>
 

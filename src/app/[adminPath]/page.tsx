@@ -274,7 +274,7 @@ export default function AdminConsolePage() {
               <Lock className="h-7 w-7" />
             </div>
             <h1 className="text-2xl font-bold tracking-tight">Pinhire Admin Console</h1>
-            <p className="text-xs text-slate-400 font-mono">{configuredAdminPath}</p>
+            <p className="text-xs text-slate-400">Restricted publishing workspace</p>
           </div>
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
@@ -285,7 +285,6 @@ export default function AdminConsolePage() {
                 placeholder="Enter admin passcode"
                 className={INPUT}
               />
-              <p className="text-[11px] text-slate-500 mt-1">Default: admin123</p>
             </div>
             <button type="submit" disabled={authLoading}
               className="flex items-center justify-center gap-2 w-full py-3 rounded-xl bg-brand-600 hover:bg-brand-700 font-bold text-sm text-white shadow-pin transition-all">
@@ -309,9 +308,6 @@ export default function AdminConsolePage() {
             <div className="flex items-center gap-2">
               <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 animate-pulse" />
               <h1 className="text-2xl font-extrabold tracking-tight text-white">Admin Console</h1>
-              <span className="px-2 py-0.5 rounded bg-slate-800 text-[11px] font-mono text-emerald-400 border border-slate-700">
-                {configuredAdminPath}
-              </span>
             </div>
             <p className="text-xs text-slate-400 mt-1">Publish jobs, edit existing roles, and monitor real candidate metrics.</p>
           </div>

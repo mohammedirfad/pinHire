@@ -1,8 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getDistanceKm, KNOWN_CITIES } from '@/lib/geo';
+import { normalizeSearchText, textMatchesQuery } from '@/lib/search';
 
 export const dynamic = 'force-dynamic';
+
+function getKeywordRelevance(job: any, keyword: string): number {
+  const query = normalizeSearchText(keyword);
+  if (!query) return 0;
+
+  const title = normalizeSearchText(job.title || '');
+  const company = normalizeSearchText(job.company?.name || '');
+  const description = normalizeSearchText(job.description || '');
+  const jobType = normalizeSearchText(job.jobType || '');
+
+  if (title === query) return 100;
+  if (company === query) return 95;
+  if (title.startsWith(query)) return 90;
+  if (company.startsWith(query)) return 85;
+  if (title.includes(query)) return 80;
+  if (company.includes(query)) return 75;
+  if (jobType.includes(query)) return 60;
+  if (description.includes(query)) return 45;
+  return 20;
+}
 
 export async function GET(req: NextRequest) {
   try {
@@ -31,10 +52,13 @@ export async function GET(req: NextRequest) {
     if (keyword) {
       jobs = jobs.filter(
         (j) =>
-          j.title.toLowerCase().includes(keyword) ||
-          j.company.name.toLowerCase().includes(keyword) ||
-          j.description.toLowerCase().includes(keyword)
+          textMatchesQuery(`${j.title} ${j.company.name} ${j.description} ${j.jobType}`, keyword)
       );
+      jobs = jobs.sort((a, b) => {
+        const relevanceDiff = getKeywordRelevance(b, keyword) - getKeywordRelevance(a, keyword);
+        if (relevanceDiff !== 0) return relevanceDiff;
+        return new Date(b.postedAt).getTime() - new Date(a.postedAt).getTime();
+      });
     }
 
     // Filter by location text
