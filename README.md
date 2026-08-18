@@ -14,7 +14,7 @@
 ## 🛠️ Technology Stack
 - **Framework:** Next.js 14+ (App Router), TypeScript (Strict Mode)
 - **Styling:** Tailwind CSS + Lucide Icons + Framer Motion
-- **Database:** PostgreSQL / SQLite with Prisma ORM
+- **Database:** PostgreSQL with Prisma ORM
 - **Maps:** Leaflet / MapLibre GL / OpenStreetMap (with custom HTML company logo markers)
 - **AI & Resume Parsing:** Anthropic Claude API (with smart offline NLP parser fallbacks)
 - **Caching & Rate Limiting:** Redis token bucket (with memory TTL fallback for standalone zero-config execution)
@@ -34,7 +34,7 @@ npm install
 ### 2. Environment Setup
 Copy `.env.example` to `.env`:
 ```env
-DATABASE_URL="file:./dev.db"
+DATABASE_URL="postgresql://USER:PASSWORD@HOST.neon.tech/DBNAME?sslmode=require"
 
 # Admin Panel Secret Path (Randomized & configurable per deployment)
 NEXT_PUBLIC_ADMIN_PATH="/--------"
@@ -53,6 +53,8 @@ MAPBOX_ACCESS_TOKEN=""
 npx prisma db push
 node prisma/seed.js
 ```
+
+For Vercel + Neon, set the same `DATABASE_URL` in Vercel project environment variables, then run `npx prisma db push` against that Neon URL once so the production tables exist.
 
 ### 4. Development Server
 ```bash

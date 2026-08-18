@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { notFound, usePathname } from 'next/navigation';
 import {
   Lock, Sparkles, PlusCircle, RefreshCw, Trash2, CheckCircle2,
@@ -57,6 +57,7 @@ export default function AdminConsolePage() {
   const [authenticated, setAuthenticated] = useState(false);
   const [passcode, setPasscode] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
+  const [checkingSession, setCheckingSession] = useState(true);
 
   // Tab state
   const [activeTab, setActiveTab] = useState<ActiveTab>('publish');
@@ -82,6 +83,25 @@ export default function AdminConsolePage() {
   const [editingJobId, setEditingJobId] = useState<string | null>(null);
   const [publishing, setPublishing] = useState(false);
   const [ingesting, setIngesting] = useState(false);
+
+  useEffect(() => {
+    const checkAdminSession = async () => {
+      try {
+        const res = await fetch('/api/admin/auth', { cache: 'no-store' });
+        const data = await res.json();
+        if (data.authenticated) {
+          setAuthenticated(true);
+          fetchAdminJobs();
+        }
+      } catch {
+        setAuthenticated(false);
+      } finally {
+        setCheckingSession(false);
+      }
+    };
+
+    checkAdminSession();
+  }, []);
 
   const handleRunAutoIngest = async () => {
     setIngesting(true);
@@ -123,12 +143,11 @@ export default function AdminConsolePage() {
     setLoadingJobs(true);
     try {
       const res = await fetch('/api/admin/jobs');
-      if (res.ok) {
-        const data = await res.json();
-        setJobs(data.jobs || []);
-        if (data.metrics) setMetrics(data.metrics);
-      }
-    } catch { toast.error('Failed to load jobs'); }
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error?.message || 'Failed to load jobs');
+      setJobs(data.jobs || []);
+      if (data.metrics) setMetrics(data.metrics);
+    } catch (err: any) { toast.error(err.message || 'Failed to load jobs'); }
     finally { setLoadingJobs(false); }
   };
 
@@ -238,6 +257,14 @@ export default function AdminConsolePage() {
   };
 
   // ── Auth Screen ──
+  if (checkingSession) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4 text-slate-400">
+        <Loader2 className="h-5 w-5 animate-spin" />
+      </div>
+    );
+  }
+
   if (!authenticated) {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">

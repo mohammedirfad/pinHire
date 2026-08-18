@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+const ADMIN_SESSION_VALUE = 'authenticated_token_2026';
+
 export async function POST(req: NextRequest) {
   try {
     const { passcode } = await req.json();
@@ -7,7 +9,7 @@ export async function POST(req: NextRequest) {
 
     if (passcode === adminSecret || passcode === 'admin123') {
       const response = NextResponse.json({ success: true });
-      response.cookies.set('pinhire_admin_session', 'authenticated_token_2026', {
+      response.cookies.set('pinhire_admin_session', ADMIN_SESSION_VALUE, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'strict',
@@ -21,4 +23,9 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     return NextResponse.json({ error: { code: 'AUTH_FAILED', message: 'Admin authentication failed' } }, { status: 500 });
   }
+}
+
+export async function GET(req: NextRequest) {
+  const session = req.cookies.get('pinhire_admin_session')?.value;
+  return NextResponse.json({ authenticated: session === ADMIN_SESSION_VALUE });
 }
