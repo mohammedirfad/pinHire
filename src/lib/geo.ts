@@ -21,12 +21,46 @@ function toRad(value: number): number {
   return (value * Math.PI) / 180;
 }
 
+function getEditDistance(a: string, b: string): number {
+  const matrix = Array.from({ length: a.length + 1 }, (_, i) => [i]);
+  for (let j = 1; j <= b.length; j++) matrix[0][j] = j;
+
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      matrix[i][j] = Math.min(
+        matrix[i - 1][j] + 1,
+        matrix[i][j - 1] + 1,
+        matrix[i - 1][j - 1] + cost
+      );
+    }
+  }
+
+  return matrix[a.length][b.length];
+}
+
 // Known tech hubs & coordinates for rapid offline lookup
 export const KNOWN_CITIES: Record<string, { lat: number; lng: number; label: string; country: string }> = {
   bangalore: { lat: 12.9716, lng: 77.5946, label: 'Bangalore, Karnataka, India', country: 'India' },
+  bengaluru: { lat: 12.9716, lng: 77.5946, label: 'Bengaluru, Karnataka, India', country: 'India' },
   kochi: { lat: 9.9312, lng: 76.2673, label: 'Kochi, Kerala, India', country: 'India' },
+  kakkanad: { lat: 10.0159, lng: 76.3419, label: 'Kakkanad, Kochi, Kerala, India', country: 'India' },
+  infopark: { lat: 10.0104, lng: 76.3637, label: 'Infopark Kochi, Kerala, India', country: 'India' },
   mumbai: { lat: 19.0760, lng: 72.8777, label: 'Mumbai, Maharashtra, India', country: 'India' },
   delhi: { lat: 28.6139, lng: 77.2090, label: 'Delhi, India', country: 'India' },
+  'delhi ncr': { lat: 28.4595, lng: 77.0266, label: 'Delhi NCR, India', country: 'India' },
+  gurgaon: { lat: 28.4595, lng: 77.0266, label: 'Gurugram, Haryana, India', country: 'India' },
+  gurugram: { lat: 28.4595, lng: 77.0266, label: 'Gurugram, Haryana, India', country: 'India' },
+  noida: { lat: 28.5355, lng: 77.3910, label: 'Noida, Uttar Pradesh, India', country: 'India' },
+  hyderabad: { lat: 17.3850, lng: 78.4867, label: 'Hyderabad, Telangana, India', country: 'India' },
+  pune: { lat: 18.5204, lng: 73.8567, label: 'Pune, Maharashtra, India', country: 'India' },
+  chennai: { lat: 13.0827, lng: 80.2707, label: 'Chennai, Tamil Nadu, India', country: 'India' },
+  trivandrum: { lat: 8.5241, lng: 76.9366, label: 'Thiruvananthapuram, Kerala, India', country: 'India' },
+  thiruvananthapuram: { lat: 8.5241, lng: 76.9366, label: 'Thiruvananthapuram, Kerala, India', country: 'India' },
+  coimbatore: { lat: 11.0168, lng: 76.9558, label: 'Coimbatore, Tamil Nadu, India', country: 'India' },
+  ahmedabad: { lat: 23.0225, lng: 72.5714, label: 'Ahmedabad, Gujarat, India', country: 'India' },
+  kolkata: { lat: 22.5726, lng: 88.3639, label: 'Kolkata, West Bengal, India', country: 'India' },
+  jaipur: { lat: 26.9124, lng: 75.7873, label: 'Jaipur, Rajasthan, India', country: 'India' },
   sf: { lat: 37.7749, lng: -122.4194, label: 'San Francisco, CA, USA', country: 'USA' },
   'san francisco': { lat: 37.7749, lng: -122.4194, label: 'San Francisco, CA, USA', country: 'USA' },
   ny: { lat: 40.7128, lng: -74.0060, label: 'New York, NY, USA', country: 'USA' },
@@ -46,6 +80,27 @@ export const KNOWN_CITIES: Record<string, { lat: number; lng: number; label: str
 };
 
 export const DEFAULT_CENTER = KNOWN_CITIES.bangalore;
+
+export function getLocalLocationSuggestions(query: string, limit = 6) {
+  const normalized = query.toLowerCase().trim();
+  if (!normalized) return [];
+
+  return Object.entries(KNOWN_CITIES)
+    .map(([key, city]) => {
+      const label = city.label.toLowerCase();
+      const score = key.startsWith(normalized)
+        ? 0
+        : label.includes(normalized)
+        ? 1
+        : getEditDistance(normalized, key);
+
+      return { label: city.label, lat: city.lat, lng: city.lng, score };
+    })
+    .filter((item) => item.score <= Math.max(2, Math.floor(normalized.length / 3)))
+    .sort((a, b) => a.score - b.score || a.label.localeCompare(b.label))
+    .filter((item, index, arr) => arr.findIndex((candidate) => candidate.label === item.label) === index)
+    .slice(0, limit);
+}
 
 export function filterByRadius<T extends { lat: number; lng: number }>(
   items: T[],
@@ -71,6 +126,11 @@ export async function geocodeLocation(locationName: string): Promise<{ lat: numb
     if (locKey.includes(key) || key.includes(locKey)) {
       return { lat: KNOWN_CITIES[key].lat, lng: KNOWN_CITIES[key].lng };
     }
+  }
+
+  const fuzzyMatch = getLocalLocationSuggestions(locationName, 1)[0];
+  if (fuzzyMatch) {
+    return { lat: fuzzyMatch.lat, lng: fuzzyMatch.lng };
   }
 
   // 3. Fallback to OpenStreetMap Nominatim for any location worldwide

@@ -23,6 +23,116 @@ function generateLogoUrl(companyName: string): string {
   return `https://ui-avatars.com/api/?name=${encodeURIComponent(companyName)}&background=4F46E5&color=ffffff&bold=true&size=128`;
 }
 
+function decodeHtml(value: string): string {
+  return value
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#039;/g, "'")
+    .replace(/&rsquo;/g, "'")
+    .replace(/&ndash;/g, '-')
+    .replace(/&mdash;/g, '-')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>');
+}
+
+function stripHtml(value: string): string {
+  return decodeHtml(value.replace(/<script[\s\S]*?<\/script>/gi, '').replace(/<style[\s\S]*?<\/style>/gi, '').replace(/<[^>]+>/g, ' '))
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function toAbsoluteUrl(url: string, baseUrl: string): string {
+  try {
+    return new URL(url, baseUrl).toString();
+  } catch {
+    return baseUrl;
+  }
+}
+
+function parseDate(value?: string | null): Date | null {
+  if (!value) return null;
+  const cleaned = value.replace(/(\d+)(st|nd|rd|th)/gi, '$1').trim();
+  const ddMmYyyy = cleaned.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+  if (ddMmYyyy) {
+    return new Date(Number(ddMmYyyy[3]), Number(ddMmYyyy[2]) - 1, Number(ddMmYyyy[1]));
+  }
+
+  const parsed = new Date(cleaned);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function getExpiryDate(value?: string | null): Date {
+  const parsed = parseDate(value);
+  if (parsed) return parsed;
+
+  const fallback = new Date();
+  fallback.setDate(fallback.getDate() + 30);
+  return fallback;
+}
+
+function parseExperienceRange(text: string) {
+  const normalized = text.toLowerCase();
+  const range = normalized.match(/(\d+)\s*(?:\+|to|-)\s*(\d+)?\s*(?:years|year|yrs|yr)/);
+  if (range) {
+    return {
+      min: Number(range[1]) || 0,
+      max: range[2] ? Number(range[2]) : null,
+    };
+  }
+
+  const single = normalized.match(/(\d+)\s*\+?\s*(?:years|year|yrs|yr)/);
+  return {
+    min: single ? Number(single[1]) || 0 : 0,
+    max: null,
+  };
+}
+
+function parseInfoparkRows(html: string, baseUrl: string) {
+  const rows = [...html.matchAll(/<tr[\s\S]*?<\/tr>/gi)];
+  return rows
+    .map((row) => {
+      const rowHtml = row[0];
+      const cells = [...rowHtml.matchAll(/<td[\s\S]*?>([\s\S]*?)<\/td>/gi)].map((cell) => stripHtml(cell[1]));
+      const detailHref = rowHtml.match(/href=["']([^"']*(?:company-jobs\/details|\/jobs\/)[^"']*)["']/i)?.[1];
+      if (cells.length < 4 || !detailHref) return null;
+
+      return {
+        postedDate: cells[0],
+        title: cells[1],
+        companyName: cells[2],
+        closingDate: cells[3],
+        detailUrl: toAbsoluteUrl(detailHref, baseUrl),
+      };
+    })
+    .filter(Boolean) as Array<{
+      postedDate: string;
+      title: string;
+      companyName: string;
+      closingDate: string;
+      detailUrl: string;
+    }>;
+}
+
+function parseInfoparkDetail(html: string) {
+  const text = stripHtml(html);
+  const email = text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0] || null;
+  const location = text.match(/Location\s*:?\s*([A-Za-z ,.-]+)/i)?.[1]?.split(/Job Summary|Key Responsibilities|Qualification/i)[0]?.trim();
+  const profileHref = html.match(/href=["']([^"']*company-profile[^"']*)["']/i)?.[1] || null;
+  const logoHref = html.match(/<img[^>]+src=["']([^"']+)["']/i)?.[1] || null;
+
+  const careerStart = text.indexOf('Career Opportunities');
+  const description = careerStart >= 0 ? text.slice(careerStart).replace(/^Career Opportunities\s+Back\s+/i, '').trim() : text;
+
+  return {
+    description,
+    email,
+    location,
+    companyWebsite: profileHref,
+    logoHref,
+  };
+}
+
 function getEnvList(name: string, fallback: string[]): string[] {
   return (process.env[name] || fallback.join(','))
     .split(',')
@@ -49,6 +159,122 @@ export async function runJobIngestionAndCleanup(): Promise<IngestionResult> {
   };
 
   log('Starting multi-source job ingestion pipeline...');
+
+  // 0. Ingest from Infopark public jobs pages (Kerala IT park roles)
+  try {
+    const baseUrl = 'https://infopark.in';
+    const maxPages = getEnvNumber('INFOPARK_PAGES', 5, 25);
+    log(`Fetching from Infopark public jobs pages (${maxPages} page(s))...`);
+    sourcesProcessed.push('infopark');
+
+    for (let page = 1; page <= maxPages; page++) {
+      const listRes = await fetch(`${baseUrl}/companies-job?page=${page}`, {
+        headers: {
+          'User-Agent': 'PinhireJobBot/1.0 (+https://www.pinhire.online)',
+          Accept: 'text/html',
+        },
+        next: { revalidate: 0 },
+      });
+
+      if (!listRes.ok) {
+        log(`Infopark skipped page ${page}: HTTP ${listRes.status}`);
+        continue;
+      }
+
+      const listHtml = await listRes.text();
+      const listings = parseInfoparkRows(listHtml, baseUrl);
+      log(`Infopark returned ${listings.length} listing rows for page ${page}.`);
+
+      for (const listing of listings) {
+        if (!listing.title || !listing.companyName || !listing.detailUrl) {
+          skippedCount++;
+          continue;
+        }
+
+        const existing = await prisma.job.findFirst({
+          where: {
+            OR: [
+              { applyLink: listing.detailUrl },
+              { title: listing.title, company: { name: listing.companyName } },
+            ],
+          },
+        });
+
+        if (existing) {
+          skippedCount++;
+          continue;
+        }
+
+        const detailRes = await fetch(listing.detailUrl, {
+          headers: {
+            'User-Agent': 'PinhireJobBot/1.0 (+https://www.pinhire.online)',
+            Accept: 'text/html',
+          },
+          next: { revalidate: 0 },
+        });
+
+        if (!detailRes.ok) {
+          skippedCount++;
+          continue;
+        }
+
+        const detail = parseInfoparkDetail(await detailRes.text());
+        const description = detail.description || `Job vacancy for ${listing.title} at ${listing.companyName}.`;
+        if (description.length < 80) {
+          skippedCount++;
+          continue;
+        }
+
+        const locationLabel = detail.location || 'Infopark Kochi, Kerala, India';
+        const coords = (await geocodeLocation(locationLabel)) || { lat: 10.0104, lng: 76.3637 };
+        const companySlug = slugify(listing.companyName) || `infopark-company-${Date.now()}`;
+        const company = await prisma.company.upsert({
+          where: { slug: companySlug },
+          update: {
+            website: detail.companyWebsite ? toAbsoluteUrl(detail.companyWebsite, baseUrl) : undefined,
+            logoUrl: detail.logoHref ? toAbsoluteUrl(detail.logoHref, baseUrl) : undefined,
+          },
+          create: {
+            slug: companySlug,
+            name: listing.companyName,
+            website: detail.companyWebsite ? toAbsoluteUrl(detail.companyWebsite, baseUrl) : null,
+            logoUrl: detail.logoHref ? toAbsoluteUrl(detail.logoHref, baseUrl) : null,
+            verified: true,
+            lat: coords.lat,
+            lng: coords.lng,
+          },
+        });
+
+        const experience = parseExperienceRange(`${listing.title} ${description}`);
+        const postedAt = parseDate(listing.postedDate) || new Date();
+        await prisma.job.create({
+          data: {
+            slug: `${slugify(`${listing.title}-${listing.companyName}`)}-${Math.random().toString(36).slice(2, 7)}`,
+            title: listing.title,
+            companyId: company.id,
+            description,
+            lat: coords.lat,
+            lng: coords.lng,
+            locationLabel,
+            experienceMin: experience.min,
+            experienceMax: experience.max,
+            jobType: listing.title.toLowerCase().includes('intern') ? 'INTERNSHIP' : 'FULL_TIME',
+            applyLink: listing.detailUrl,
+            hrEmail: detail.email,
+            postedAt,
+            expiresAt: getExpiryDate(listing.closingDate),
+            status: 'ACTIVE',
+            source: 'infopark',
+            createdBy: 'auto-ingest',
+          },
+        });
+
+        ingestedCount++;
+      }
+    }
+  } catch (err: any) {
+    log(`Infopark ingestion error: ${err.message}`);
+  }
 
   // 1. Ingest from Arbeitnow API (Free, global/EU tech roles)
   try {
