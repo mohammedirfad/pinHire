@@ -7,8 +7,8 @@ import { ParsedResume } from '@/lib/resumeParser';
 import { JobCard } from '@/components/JobCard';
 import { JobDetailModal } from '@/components/JobDetailModal';
 import { MOCK_JOBS, JobMock } from '@/lib/mockData';
-import { geocodeLocation, KNOWN_CITIES } from '@/lib/geo';
-import { MapPin, Sparkles, CheckCircle2, Briefcase, Award, Search, Globe, ChevronLeft, ChevronRight } from 'lucide-react';
+import { geocodeLocation } from '@/lib/geo';
+import { MapPin, Sparkles, CheckCircle2, Briefcase, Award, ChevronLeft, ChevronRight, Navigation, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 const JobMap = dynamic(() => import('@/components/JobMap'), {
@@ -31,12 +31,27 @@ const POPULAR_CITIES = [
   'Remote Worldwide',
 ];
 
+function getDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const radius = 6371;
+  const toRad = (value: number) => (value * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return radius * c;
+}
+
 export default function ResumeSearchPage() {
   const [parsed, setParsed] = useState<ParsedResume | null>(null);
   const [matchedJobs, setMatchedJobs] = useState<any[]>([]);
   const [targetLocation, setTargetLocation] = useState<string>('');
   const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number }>({ lat: 12.9716, lng: 77.5946 });
   const [selectedJob, setSelectedJob] = useState<any>(null);
+  const [allMatchedJobs, setAllMatchedJobs] = useState<any[]>([]);
+  const [currentLocationLoading, setCurrentLocationLoading] = useState(false);
+  const [usingCurrentLocation, setUsingCurrentLocation] = useState(false);
 
   // Pagination state for matched jobs
   const [currentPage, setCurrentPage] = useState(1);
@@ -48,10 +63,79 @@ export default function ResumeSearchPage() {
     setCurrentPage(1);
 
     const jobsList = jobsFromApi && jobsFromApi.length > 0 ? jobsFromApi : MOCK_JOBS;
+    setAllMatchedJobs(jobsList);
     setMatchedJobs(jobsList);
 
-    // Geocode candidate target location & re-center map
+    requestCurrentLocation(jobsList);
     updateMapLocation(data.locationPreference || 'Bangalore, India');
+  };
+
+  const requestCurrentLocation = (baseJobs = allMatchedJobs) => {
+    if (!navigator.geolocation) {
+      toast.info('Location access is not available. Choose a target city manually.');
+      return;
+    }
+
+    setCurrentLocationLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const coords = {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        };
+        setUsingCurrentLocation(true);
+        setMapCenter(coords);
+        setTargetLocation('Current location');
+        setCurrentPage(1);
+
+        const nearbyResumeMatches = baseJobs.filter((job) => {
+          if (typeof job?.lat !== 'number' || typeof job?.lng !== 'number') return false;
+          return getDistanceKm(coords.lat, coords.lng, job.lat, job.lng) <= 100;
+        });
+
+        try {
+          const params = new URLSearchParams({
+            lat: String(coords.lat),
+            lng: String(coords.lng),
+            radiusKm: '100',
+          });
+          const res = await fetch(`/api/jobs?${params.toString()}`);
+          const data = await res.json();
+          const nearbyActiveJobs = Array.isArray(data.jobs) ? data.jobs : [];
+
+          const scoredById = new Map(baseJobs.map((job) => [job.id, job]));
+          const mergedNearbyJobs = nearbyActiveJobs.map((job: any) => ({
+            ...job,
+            matchScore: scoredById.get(job.id)?.matchScore || 72,
+            matchedSkillCount: scoredById.get(job.id)?.matchedSkillCount || 0,
+          }));
+
+          const nextJobs = mergedNearbyJobs.length > 0 ? mergedNearbyJobs : nearbyResumeMatches;
+          if (nextJobs.length > 0) {
+            setMatchedJobs(nextJobs);
+            toast.success(`Showing ${nextJobs.length} jobs within 100 km of your current location.`);
+          } else {
+            setMatchedJobs(baseJobs);
+            toast.info('No nearby jobs found yet. Showing your best resume matches instead.');
+          }
+        } catch {
+          if (nearbyResumeMatches.length > 0) {
+            setMatchedJobs(nearbyResumeMatches);
+            toast.success(`Showing ${nearbyResumeMatches.length} resume matches near you.`);
+          } else {
+            toast.info('Could not fetch nearby jobs. Showing your best resume matches.');
+          }
+        } finally {
+          setCurrentLocationLoading(false);
+        }
+      },
+      () => {
+        setCurrentLocationLoading(false);
+        setUsingCurrentLocation(false);
+        toast.info('Location permission was not enabled. Choose a target city manually.');
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 300000 }
+    );
   };
 
   const updateMapLocation = async (locName: string) => {
@@ -64,7 +148,10 @@ export default function ResumeSearchPage() {
   };
 
   const handleLocationChange = (newLoc: string) => {
+    setUsingCurrentLocation(false);
     setTargetLocation(newLoc);
+    setMatchedJobs(allMatchedJobs.length > 0 ? allMatchedJobs : matchedJobs);
+    setCurrentPage(1);
     updateMapLocation(newLoc);
   };
 
@@ -157,6 +244,14 @@ export default function ResumeSearchPage() {
                     >
                       Update Map
                     </button>
+                    <button
+                      onClick={() => requestCurrentLocation()}
+                      disabled={currentLocationLoading}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 text-xs font-bold transition-colors disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+                    >
+                      {currentLocationLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Navigation className="h-3.5 w-3.5 text-coral-500" />}
+                      Near Me
+                    </button>
                   </div>
 
                   {/* Quick City Selector Chips */}
@@ -186,7 +281,9 @@ export default function ResumeSearchPage() {
                   <MapPin className="h-4 w-4 text-coral-500" />
                   Matched Map Job Pins ({matchedJobs.length}) near "{targetLocation}"
                 </span>
-                <span className="text-[11px] text-slate-500">Centered on target location</span>
+                <span className="text-[11px] text-slate-500">
+                  {usingCurrentLocation ? 'Centered on your current location' : 'Centered on target location'}
+                </span>
               </div>
               <div className="h-[380px] w-full rounded-xl overflow-hidden">
                 <JobMap

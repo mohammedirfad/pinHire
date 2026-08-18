@@ -23,6 +23,19 @@ function generateLogoUrl(companyName: string): string {
   return `https://ui-avatars.com/api/?name=${encodeURIComponent(companyName)}&background=4F46E5&color=ffffff&bold=true&size=128`;
 }
 
+function getEnvList(name: string, fallback: string[]): string[] {
+  return (process.env[name] || fallback.join(','))
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function getEnvNumber(name: string, fallback: number, max: number): number {
+  const value = Number(process.env[name]);
+  if (!Number.isFinite(value) || value <= 0) return fallback;
+  return Math.min(value, max);
+}
+
 export async function runJobIngestionAndCleanup(): Promise<IngestionResult> {
   let ingestedCount = 0;
   let skippedCount = 0;
@@ -223,86 +236,124 @@ export async function runJobIngestionAndCleanup(): Promise<IngestionResult> {
 
   if (adzunaAppId && adzunaAppKey) {
     try {
-      log('Fetching from Adzuna API (India)...');
-      const url = `https://api.adzuna.com/v1/api/jobs/in/search/1?app_id=${adzunaAppId}&app_key=${adzunaAppKey}&results_per_page=15&content-type=application/json`;
-      const res = await fetch(url, { next: { revalidate: 0 } });
-      if (res.ok) {
-        const data = await res.json();
-        const jobs = data?.results || [];
-        log(`Adzuna returned ${jobs.length} raw jobs.`);
-        sourcesProcessed.push('adzuna');
+      const indiaLocations = getEnvList('INDIA_JOB_LOCATIONS', [
+        'Bangalore',
+        'Hyderabad',
+        'Pune',
+        'Chennai',
+        'Mumbai',
+        'Delhi NCR',
+        'Gurgaon',
+        'Noida',
+        'Kochi',
+        'Ahmedabad',
+      ]);
+      const resultsPerPage = getEnvNumber('ADZUNA_RESULTS_PER_PAGE', 50, 50);
+      const pagesPerLocation = getEnvNumber('ADZUNA_PAGES_PER_LOCATION', 1, 5);
+      const geocodeCache = new Map<string, { lat: number; lng: number } | null>();
 
-        for (const item of jobs) {
-          const title = item.title?.trim();
-          const companyName = item.company?.display_name?.trim();
-          const description = item.description?.trim();
-          const applyLink = item.redirect_url?.trim();
-          const locationLabel = item.location?.display_name?.trim() || 'India';
+      log(`Fetching from Adzuna API (India sweep: ${indiaLocations.length} locations, ${pagesPerLocation} page(s) each)...`);
+      sourcesProcessed.push('adzuna');
 
-          if (!title || !companyName || !description || description.length < 20 || !applyLink) {
-            skippedCount++;
-            continue;
-          }
-
-          const existing = await prisma.job.findFirst({
-            where: {
-              OR: [
-                { applyLink },
-                { title, company: { name: companyName } }
-              ]
-            }
+      for (const location of indiaLocations) {
+        for (let page = 1; page <= pagesPerLocation; page++) {
+          const params = new URLSearchParams({
+            app_id: adzunaAppId,
+            app_key: adzunaAppKey,
+            results_per_page: String(resultsPerPage),
+            where: location,
+            'content-type': 'application/json',
           });
-
-          if (existing) {
-            skippedCount++;
+          const url = `https://api.adzuna.com/v1/api/jobs/in/search/${page}?${params.toString()}`;
+          const res = await fetch(url, { next: { revalidate: 0 } });
+          if (!res.ok) {
+            log(`Adzuna skipped ${location} page ${page}: HTTP ${res.status}`);
             continue;
           }
 
-          let coords = await geocodeLocation(locationLabel);
-          if (!coords) {
-            coords = { lat: KNOWN_CITIES.bangalore.lat, lng: KNOWN_CITIES.bangalore.lng };
-          }
+          const data = await res.json();
+          const jobs = data?.results || [];
+          log(`Adzuna returned ${jobs.length} raw jobs for ${location}, page ${page}.`);
 
-          const compSlug = slugify(companyName) || `comp-${Date.now()}`;
-          let company = await prisma.company.findUnique({ where: { slug: compSlug } });
-          if (!company) {
-            company = await prisma.company.create({
-              data: {
-                slug: compSlug,
-                name: companyName,
-                logoUrl: generateLogoUrl(companyName),
-                verified: true,
-                lat: coords.lat,
-                lng: coords.lng,
+          for (const item of jobs) {
+            const title = item.title?.trim();
+            const companyName = item.company?.display_name?.trim();
+            const description = item.description?.trim();
+            const applyLink = item.redirect_url?.trim();
+            const locationLabel = item.location?.display_name?.trim() || `${location}, India`;
+
+            if (!title || !companyName || !description || description.length < 20 || !applyLink) {
+              skippedCount++;
+              continue;
+            }
+
+            const existing = await prisma.job.findFirst({
+              where: {
+                OR: [
+                  { applyLink },
+                  { title, company: { name: companyName } }
+                ]
               }
             });
-          }
 
-          const baseSlug = slugify(`${title}-${companyName}`);
-          const uniqueSlug = `${baseSlug}-${Math.random().toString(36).substring(2, 7)}`;
-          const postedAt = item.created ? new Date(item.created) : new Date();
-          const expiresAt = new Date(postedAt.getTime() + 25 * 24 * 60 * 60 * 1000);
-
-          await prisma.job.create({
-            data: {
-              slug: uniqueSlug,
-              title,
-              companyId: company.id,
-              description,
-              lat: coords.lat,
-              lng: coords.lng,
-              locationLabel,
-              jobType: 'FULL_TIME',
-              applyLink,
-              postedAt,
-              expiresAt,
-              status: 'ACTIVE',
-              source: 'adzuna',
-              createdBy: 'auto-ingest',
+            if (existing) {
+              skippedCount++;
+              continue;
             }
-          });
 
-          ingestedCount++;
+            let coords = geocodeCache.get(locationLabel);
+            if (coords === undefined) {
+              coords = await geocodeLocation(locationLabel);
+              geocodeCache.set(locationLabel, coords);
+            }
+            if (!coords) {
+              coords = await geocodeLocation(`${location}, India`);
+            }
+            if (!coords) {
+              coords = { lat: KNOWN_CITIES.bangalore.lat, lng: KNOWN_CITIES.bangalore.lng };
+            }
+
+            const compSlug = slugify(companyName) || `comp-${Date.now()}`;
+            let company = await prisma.company.findUnique({ where: { slug: compSlug } });
+            if (!company) {
+              company = await prisma.company.create({
+                data: {
+                  slug: compSlug,
+                  name: companyName,
+                  logoUrl: generateLogoUrl(companyName),
+                  verified: true,
+                  lat: coords.lat,
+                  lng: coords.lng,
+                }
+              });
+            }
+
+            const baseSlug = slugify(`${title}-${companyName}`);
+            const uniqueSlug = `${baseSlug}-${Math.random().toString(36).substring(2, 7)}`;
+            const postedAt = item.created ? new Date(item.created) : new Date();
+            const expiresAt = new Date(postedAt.getTime() + 25 * 24 * 60 * 60 * 1000);
+
+            await prisma.job.create({
+              data: {
+                slug: uniqueSlug,
+                title,
+                companyId: company.id,
+                description,
+                lat: coords.lat,
+                lng: coords.lng,
+                locationLabel,
+                jobType: 'FULL_TIME',
+                applyLink,
+                postedAt,
+                expiresAt,
+                status: 'ACTIVE',
+                source: 'adzuna',
+                createdBy: 'auto-ingest',
+              }
+            });
+
+            ingestedCount++;
+          }
         }
       }
     } catch (err: any) {

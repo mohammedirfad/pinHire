@@ -4,8 +4,9 @@ import React, { useEffect, useState, useMemo } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
-import { Building2, MapPin, ExternalLink, Mail, Sparkles, Navigation } from 'lucide-react';
+import { MapPin, Sparkles } from 'lucide-react';
 import { JobMock } from '@/lib/mockData';
+import { getCompanyColor, getCompanyInitials } from '@/lib/companyLogo';
 
 interface JobMapProps {
   jobs: JobMock[];
@@ -71,6 +72,8 @@ export default function JobMap({
   const createCustomIcon = (job: JobMock, isSelected: boolean) => {
     const logoUrl = job.company?.logoUrl;
     const hasLogo = logoUrl && logoUrl.length > 5;
+    const initials = getCompanyInitials(job.company?.name);
+    const color = getCompanyColor(job.company?.name);
 
     const html = `
       <div class="relative group cursor-pointer transform transition-transform ${isSelected ? 'scale-125 z-50' : 'hover:scale-110 z-10'}">
@@ -79,7 +82,7 @@ export default function JobMap({
             ${
               hasLogo
                 ? `<img src="${logoUrl}" alt="${job.company.name}" class="h-full w-full object-cover"/>`
-                : `<svg class="h-3.5 w-3.5 text-coral-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5"/></svg>`
+                : `<span class="flex h-full w-full items-center justify-center text-[10px] font-extrabold text-white" style="background:${color}">${initials}</span>`
             }
           </div>
           <span class="text-xs font-semibold whitespace-nowrap tracking-tight text-white max-w-[120px] truncate">
@@ -156,8 +159,15 @@ export default function JobMap({
               <Popup className="custom-leaflet-popup">
                 <div className="p-1 max-w-[220px]">
                   <div className="flex items-center gap-2 mb-1.5">
-                    {job.company.logoUrl && (
+                    {job.company.logoUrl ? (
                       <img src={job.company.logoUrl} alt={job.company.name} className="h-6 w-6 rounded object-cover border" />
+                    ) : (
+                      <span
+                        className="flex h-6 w-6 items-center justify-center rounded border text-[10px] font-extrabold text-white"
+                        style={{ backgroundColor: getCompanyColor(job.company.name) }}
+                      >
+                        {getCompanyInitials(job.company.name)}
+                      </span>
                     )}
                     <span className="font-semibold text-slate-900 text-xs">{job.company.name}</span>
                   </div>

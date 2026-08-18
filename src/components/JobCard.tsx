@@ -2,9 +2,10 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { MapPin, Briefcase, Clock, Building2, CheckCircle2, ChevronRight } from 'lucide-react';
+import { MapPin, Briefcase, Clock, CheckCircle2, ChevronRight } from 'lucide-react';
 import { JobMock } from '@/lib/mockData';
 import { formatDate } from '@/lib/utils';
+import { getCompanyColor, getCompanyInitials } from '@/lib/companyLogo';
 
 interface JobCardProps {
   job: JobMock;
@@ -13,6 +14,9 @@ interface JobCardProps {
 }
 
 export function JobCard({ job, isSelected, onSelect }: JobCardProps) {
+  const companyInitials = getCompanyInitials(job.company.name);
+  const companyColor = getCompanyColor(job.company.name);
+
   return (
     <div
       onClick={() => onSelect?.(job)}
@@ -32,7 +36,13 @@ export function JobCard({ job, isSelected, onSelect }: JobCardProps) {
               className="h-full w-full object-cover rounded"
             />
           ) : (
-            <Building2 className="h-6 w-6 text-slate-400" />
+            <span
+              className="flex h-full w-full items-center justify-center rounded text-sm font-extrabold text-white"
+              style={{ backgroundColor: companyColor }}
+              aria-label={`${job.company.name} initials`}
+            >
+              {companyInitials}
+            </span>
           )}
         </div>
 

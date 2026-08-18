@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
         data: {
           slug: companySlug,
           name: companyName,
-          logoUrl: logoUrl || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=120&h=120&q=80',
+          logoUrl: logoUrl || null,
           verified: true,
           lat: lat || 12.9716,
           lng: lng || 77.5946,
@@ -126,7 +126,7 @@ export async function PUT(req: NextRequest) {
           data: {
             slug: companySlug,
             name: companyName,
-            logoUrl: logoUrl || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=120&h=120&q=80',
+            logoUrl: logoUrl || null,
             verified: true,
             lat: lat || 12.9716,
             lng: lng || 77.5946,
