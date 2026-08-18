@@ -15,7 +15,9 @@ export async function GET(req: NextRequest) {
     const expiredCount = jobs.filter((j) => j.status === 'EXPIRED').length;
     const applicationsCount = await prisma.application.count();
     const usersCount = await prisma.user.count();
-    const visitorsCount = await prisma.analyticsEvent.count();
+    const visitorsCount = await prisma.analyticsEvent.count({
+      where: { type: 'visit' },
+    });
 
     return NextResponse.json({
       success: true,

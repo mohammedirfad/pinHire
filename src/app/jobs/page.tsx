@@ -145,6 +145,18 @@ function JobsPageInner() {
     setFilters(nextFilters);
     fetchJobs(cleanKeyword, cleanLocation, nextFilters);
     updateUrlParams(cleanKeyword, cleanLocation, nextFilters);
+
+    if (cleanKeyword || cleanLocation) {
+      fetch('/api/analytics', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'search',
+          path: `/jobs?keyword=${encodeURIComponent(cleanKeyword)}&location=${encodeURIComponent(cleanLocation)}`,
+        }),
+        keepalive: true,
+      }).catch(() => {});
+    }
   };
 
   const handleFilterChange = (newFilters: FilterState) => {

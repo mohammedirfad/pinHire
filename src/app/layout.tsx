@@ -6,6 +6,7 @@ import { Footer } from '@/components/Footer';
 import { Toaster } from 'sonner';
 import { AuthProvider } from '@/lib/authContext';
 import { StructuredData } from '@/components/StructuredData';
+import { PageViewTracker } from '@/components/PageViewTracker';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -101,6 +102,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className={`${inter.className} flex min-h-full flex-col bg-slate-50 dark:bg-slate-950`}>
         <AuthProvider>
           <StructuredData />
+          <PageViewTracker />
           <Navbar />
           <main className="flex-1">{children}</main>
           <Footer />
