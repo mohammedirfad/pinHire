@@ -35,6 +35,7 @@ npm install
 Copy `.env.example` to `.env`:
 ```env
 DATABASE_URL="postgresql://USER:PASSWORD@HOST.neon.tech/DBNAME?sslmode=require"
+DIRECT_URL="postgresql://USER:PASSWORD@HOST.neon.tech/DBNAME?sslmode=require"
 
 # Admin Panel Secret Path (Randomized & configurable per deployment)
 NEXT_PUBLIC_ADMIN_PATH="/--------"
@@ -54,7 +55,7 @@ npx prisma db push
 node prisma/seed.js
 ```
 
-For Vercel + Neon, set the same `DATABASE_URL` in Vercel project environment variables, then run `npx prisma db push` against that Neon URL once so the production tables exist.
+For Vercel + Neon, use Neon's pooled connection string for `DATABASE_URL` and Neon's direct/non-pooler connection string for `DIRECT_URL`, then run `npx prisma db push` once so the production tables exist.
 
 ### 4. Development Server
 ```bash

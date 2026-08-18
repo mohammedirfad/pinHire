@@ -30,6 +30,7 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (err) {
+    console.error('Failed to fetch admin jobs:', err);
     return NextResponse.json({ error: { code: 'FETCH_FAILED', message: 'Failed to fetch admin jobs' } }, { status: 500 });
   }
 }
@@ -178,6 +179,7 @@ export async function DELETE(req: NextRequest) {
     await prisma.job.delete({ where: { id } });
     return NextResponse.json({ success: true });
   } catch (err) {
+    console.error('Failed to delete admin job:', err);
     return NextResponse.json({ error: { code: 'DELETE_FAILED', message: 'Failed to delete job' } }, { status: 500 });
   }
 }
